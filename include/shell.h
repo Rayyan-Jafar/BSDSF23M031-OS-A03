@@ -19,4 +19,7 @@ char* read_cmd(char* prompt, FILE* fp);
 char** tokenize(char* cmdline);
 int execute(char** arglist);
 
-#endif // SHELL_H
+int handle_builtin(char **arglist); /* returns 1 if builtin handled, 0 otherwise */
+
+#endif /* SHELL_H */
+

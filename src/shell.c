@@ -5,7 +5,10 @@
 #include <unistd.h>
 #include <errno.h>
 
+char *history[HISTORY_SIZE];
+int history_count = 0;
 
+/* ---------- Read Command ---------- */
 char* read_cmd(char* prompt, FILE* fp) {
     printf("%s", prompt);
     char* cmdline = (char*) malloc(sizeof(char) * MAX_LEN);
@@ -22,11 +25,17 @@ char* read_cmd(char* prompt, FILE* fp) {
     }
     
     cmdline[pos] = '\0';
+
+    /* Store command in history if not empty */
+    if (strlen(cmdline) > 0 && strcmp(cmdline, "history") != 0 && cmdline[0] != '!') {
+        add_to_history(cmdline);
+    }
+
     return cmdline;
 }
 
+/* ---------- Tokenizer ---------- */
 char** tokenize(char* cmdline) {
-    // Edge case: empty command line
     if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
         return NULL;
     }
@@ -43,9 +52,8 @@ char** tokenize(char* cmdline) {
     int argnum = 0;
 
     while (*cp != '\0' && argnum < MAXARGS) {
-        while (*cp == ' ' || *cp == '\t') cp++; // Skip leading whitespace
-        
-        if (*cp == '\0') break; // Line was only whitespace
+        while (*cp == ' ' || *cp == '\t') cp++; 
+        if (*cp == '\0') break;
 
         start = cp;
         len = 1;
@@ -57,7 +65,7 @@ char** tokenize(char* cmdline) {
         argnum++;
     }
 
-    if (argnum == 0) { // No arguments were parsed
+    if (argnum == 0) {
         for(int i = 0; i < MAXARGS + 1; i++) free(arglist[i]);
         free(arglist);
         return NULL;
@@ -67,7 +75,21 @@ char** tokenize(char* cmdline) {
     return arglist;
 }
 
+/* ---------- Add Command to History ---------- */
+void add_to_history(const char *cmd) {
+    if (history_count == HISTORY_SIZE) {
+        free(history[0]);
+        for (int i = 1; i < HISTORY_SIZE; i++) {
+            history[i - 1] = history[i];
+        }
+        history_count--;
+    }
 
+    history[history_count] = strdup(cmd);
+    history_count++;
+}
+
+/* ---------- Built-in Commands ---------- */
 int handle_builtin(char **arglist)
 {
     if (arglist == NULL || arglist[0] == NULL)
@@ -75,8 +97,6 @@ int handle_builtin(char **arglist)
 
     /* ----- exit ----- */
     if (strcmp(arglist[0], "exit") == 0) {
-        /* Optional: you can do cleanup here (free history, jobs, etc.) */
-        /* If user provided a status: exit <n> */
         if (arglist[1] != NULL) {
             char *endptr = NULL;
             long code = strtol(arglist[1], &endptr, 10);
@@ -89,7 +109,6 @@ int handle_builtin(char **arglist)
         } else {
             exit(0);
         }
-        /* unreachable */
         return 1;
     }
 
@@ -97,9 +116,8 @@ int handle_builtin(char **arglist)
     if (strcmp(arglist[0], "cd") == 0) {
         char *dir = arglist[1];
         if (dir == NULL) {
-            /* default to HOME if no arg */
             dir = getenv("HOME");
-            if (dir == NULL) dir = "/"; /* fallback */
+            if (dir == NULL) dir = "/";
         }
         if (chdir(dir) != 0) {
             fprintf(stderr, "cd: %s: %s\n", dir, strerror(errno));
@@ -111,8 +129,9 @@ int handle_builtin(char **arglist)
     if (strcmp(arglist[0], "help") == 0) {
         printf("Shell built-in commands:\n");
         printf("  exit [n]       Exit the shell (optional status n)\n");
-        printf("  cd [dir]       Change the current directory to 'dir'\n");
+        printf("  cd [dir]       Change the current directory\n");
         printf("  help           Display this help message\n");
+        printf("  history        Show command history\n");
         printf("  jobs           Job control not yet implemented\n");
         return 1;
     }
@@ -123,5 +142,18 @@ int handle_builtin(char **arglist)
         return 1;
     }
 
+    /* ----- history ----- */
+    if (strcmp(arglist[0], "history") == 0) {
+        return shell_history(arglist);
+    }
+
     return 0; /* not a builtin */
+}
+
+/* ---------- history Built-in Implementation ---------- */
+int shell_history(char **args) {
+    for (int i = 0; i < history_count; i++) {
+        printf("%d %s\n", i + 1, history[i]);
+    }
+    return 1;
 }

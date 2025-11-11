@@ -15,21 +15,20 @@ static void trim(char *s) {
 
 /* Execute a single line and return exit status */
 int execute_line_get_status(const char *line) {
-    char *args[MAXARGS + 1];
-    char *copy = strdup(line);
-    char **tok = tokenize(copy);
-    if (!tok) { free(copy); return -1; }
+    char **tok = tokenize(strdup(line));
+    if (!tok) return -1;
 
     pid_t pid = fork();
     if (pid == 0) {
         execute(tok, 0);
+        for (int i=0; tok[i]!=NULL; i++) free(tok[i]);
+        free(tok);
         exit(0);
     } else {
         int status;
         waitpid(pid, &status, 0);
-        for (int i = 0; tok[i] != NULL; i++) free(tok[i]);
+        for (int i=0; tok[i]!=NULL; i++) free(tok[i]);
         free(tok);
-        free(copy);
         return WEXITSTATUS(status);
     }
 }
@@ -44,7 +43,6 @@ void handle_if_block(char *first_line) {
     char *line = strdup(first_line);
     trim(line);
 
-    // read the command after "if" keyword
     char if_cmd[MAX_LEN];
     if (strncmp(line, "if ", 3) == 0) strcpy(if_cmd, line + 3);
     else strcpy(if_cmd, "");
@@ -54,9 +52,9 @@ void handle_if_block(char *first_line) {
         if (!next_line) break;
         trim(next_line);
 
-        if (strcmp(next_line, "then") == 0) continue;
-        else if (strcmp(next_line, "else") == 0) { in_else = 1; continue; }
-        else if (strcmp(next_line, "fi") == 0) break;
+        if (strcmp(next_line, "then") == 0) { free(next_line); continue; }
+        else if (strcmp(next_line, "else") == 0) { in_else = 1; free(next_line); continue; }
+        else if (strcmp(next_line, "fi") == 0) { free(next_line); break; }
 
         if (!in_else) strcpy(then_block[then_count++], next_line);
         else strcpy(else_block[else_count++], next_line);
@@ -66,7 +64,6 @@ void handle_if_block(char *first_line) {
 
     free(line);
 
-    // execute if command
     int status = execute_line_get_status(if_cmd);
 
     if (status == 0) {

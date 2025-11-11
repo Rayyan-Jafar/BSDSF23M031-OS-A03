@@ -31,6 +31,23 @@ typedef struct {
 extern bg_job bg_jobs[MAX_BG_JOBS];
 extern int bg_count;
 
+/* --- Shell Variables --- */
+typedef struct variable {
+    char *name;
+    char *value;
+    struct variable *next;
+} variable;
+
+extern variable *var_list;
+
+void set_variable(const char *name, const char *value);
+char* get_variable(const char *name);
+void expand_variables(char **arglist);
+void free_variables(void);
+int handle_variable_assignment(char **arglist);
+void cleanup_variables(void);
+
+/* --- Background job management --- */
 void add_bg_job(pid_t pid, const char *cmd);
 void remove_bg_job(pid_t pid);
 void list_bg_jobs(void);

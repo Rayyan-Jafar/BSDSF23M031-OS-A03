@@ -20,6 +20,18 @@ int main() {
         // --- Reap finished background jobs before prompt ---
         reap_background_jobs();
 
+        // --- Trim leading spaces (for easier keyword detection) ---
+        char *trimmed = cmdline;
+        while (*trimmed == ' ' || *trimmed == '\t')
+            trimmed++;
+
+        // --- Feature 7: if-then-else-fi detection ---
+        if (strncmp(trimmed, "if ", 3) == 0 || strcmp(trimmed, "if") == 0) {
+            handle_if_block(trimmed);
+            free(cmdline);
+            continue;
+        }
+
         // --- Split commands by ';' ---
         char *cmd_copy = strdup(cmdline);
         char *single_cmd = strtok(cmd_copy, ";");

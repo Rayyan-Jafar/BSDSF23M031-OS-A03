@@ -33,6 +33,8 @@ static int split_pipe(char **arglist, char **cmd1, char **cmd2) {
 
 /* ---------- Helper function to handle redirection ---------- */
 static void handle_redirection(char **argv) {
+    setvbuf(stdout, NULL, _IOLBF, 0); // ensure line-buffered output
+
     char *input_file = NULL;
     char *output_file = NULL;
     char *args[MAXARGS + 1];
@@ -68,6 +70,7 @@ static void handle_redirection(char **argv) {
     exit(1);
 }
 
+/* ---------- Execute Command ---------- */
 int execute(char* arglist[], int background) {
     int status;
 
@@ -80,6 +83,7 @@ int execute(char* arglist[], int background) {
         if (pid1 < 0) { perror("fork"); return -1; }
 
         if (pid1 == 0) {
+            // left child
             dup2(pipefd[1], STDOUT_FILENO);
             close(pipefd[0]);
             close(pipefd[1]);
@@ -90,19 +94,26 @@ int execute(char* arglist[], int background) {
         if (pid2 < 0) { perror("fork"); return -1; }
 
         if (pid2 == 0) {
+            // right child
             dup2(pipefd[0], STDIN_FILENO);
             close(pipefd[0]);
             close(pipefd[1]);
             handle_redirection(cmd2);
         }
 
+        // parent
         close(pipefd[0]);
         close(pipefd[1]);
-        waitpid(pid1, &status, 0);
-        waitpid(pid2, &status, 0);
-        return 0;
+
+        if (!background) {
+            waitpid(pid1, &status, 0);
+            waitpid(pid2, &status, 0);
+        }
+
+        return background ? pid2 : 0;
     }
 
+    // single command
     pid_t cpid = fork();
     if (cpid < 0) { perror("fork failed"); exit(1); }
 

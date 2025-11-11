@@ -57,4 +57,10 @@ int handle_bang_command(char **cmdline);
 /* --- Readline / tab completion --- */
 void init_readline(void);
 
+/* --- Execute single command & get status --- */
+int execute_line_get_status(const char *line);
+
+/* --- Handle multi-line if ... then ... [else ...] fi --- */
+void handle_if_block(char *first_line);
+
 #endif /* SHELL_H */

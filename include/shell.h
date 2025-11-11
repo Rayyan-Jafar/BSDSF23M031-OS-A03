@@ -21,12 +21,27 @@
 extern char *history[HISTORY_SIZE];
 extern int history_count;
 
+/* --- Background job tracking --- */
+#define MAX_BG_JOBS 50
+typedef struct {
+    pid_t pid;
+    char cmd[MAX_LEN];
+} bg_job;
+
+extern bg_job bg_jobs[MAX_BG_JOBS];
+extern int bg_count;
+
+void add_bg_job(pid_t pid, const char *cmd);
+void remove_bg_job(pid_t pid);
+void list_bg_jobs(void);
+void reap_background_jobs(void);
+
 /* --- Input function --- */
 char* read_cmd(char* prompt, FILE* fp);
 
 /* --- Tokenization & execution --- */
 char** tokenize(char* cmdline);
-int execute(char** arglist);
+int execute(char** arglist, int background);
 int handle_builtin(char **arglist);
 
 /* --- History helpers --- */

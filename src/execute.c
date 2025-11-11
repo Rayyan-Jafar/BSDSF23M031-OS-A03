@@ -49,7 +49,6 @@ static void handle_redirection(char **argv) {
     }
     args[argc] = NULL;
 
-    // Input redirection
     if (input_file) {
         int fd = open(input_file, O_RDONLY);
         if (fd < 0) { perror("open"); exit(1); }
@@ -57,7 +56,6 @@ static void handle_redirection(char **argv) {
         close(fd);
     }
 
-    // Output redirection
     if (output_file) {
         int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd < 0) { perror("open"); exit(1); }
@@ -70,10 +68,9 @@ static void handle_redirection(char **argv) {
     exit(1);
 }
 
-int execute(char* arglist[]) {
+int execute(char* arglist[], int background) {
     int status;
 
-    // --- Check for a single pipe ---
     char *cmd1[MAXARGS + 1], *cmd2[MAXARGS + 1];
     if (split_pipe(arglist, cmd1, cmd2)) {
         int pipefd[2];
@@ -82,24 +79,23 @@ int execute(char* arglist[]) {
         pid_t pid1 = fork();
         if (pid1 < 0) { perror("fork"); return -1; }
 
-        if (pid1 == 0) { // left child (writer)
+        if (pid1 == 0) {
             dup2(pipefd[1], STDOUT_FILENO);
             close(pipefd[0]);
             close(pipefd[1]);
-            handle_redirection(cmd1); // handle < or > in left cmd
+            handle_redirection(cmd1);
         }
 
         pid_t pid2 = fork();
         if (pid2 < 0) { perror("fork"); return -1; }
 
-        if (pid2 == 0) { // right child (reader)
+        if (pid2 == 0) {
             dup2(pipefd[0], STDIN_FILENO);
             close(pipefd[0]);
             close(pipefd[1]);
-            handle_redirection(cmd2); // handle < or > in right cmd
+            handle_redirection(cmd2);
         }
 
-        // parent closes both ends and waits
         close(pipefd[0]);
         close(pipefd[1]);
         waitpid(pid1, &status, 0);
@@ -107,15 +103,19 @@ int execute(char* arglist[]) {
         return 0;
     }
 
-    // --- No pipe: execute single command with possible redirection ---
     pid_t cpid = fork();
     if (cpid < 0) { perror("fork failed"); exit(1); }
 
     if (cpid == 0) {
         handle_redirection(arglist);
     } else {
-        waitpid(cpid, &status, 0);
+        if (!background) {
+            waitpid(cpid, &status, 0);
+            return 0;
+        } else {
+            return cpid;
+        }
     }
 
-    return 0;
+    return cpid;
 }

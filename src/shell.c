@@ -3,12 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <errno.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
 char *history[HISTORY_SIZE];
 int history_count = 0;
+
+/* --- Background jobs --- */
+bg_job bg_jobs[MAX_BG_JOBS];
+int bg_count = 0;
 
 /* ---------- Readline Completion Functions ---------- */
 char* command_generator(const char *text, int state) {
@@ -46,15 +51,14 @@ void init_readline(void) {
 
 /* ---------- Read Command ---------- */
 char* read_cmd(char* prompt, FILE* fp) {
-    (void)fp; // ignore FILE*
+    (void)fp;
     char *cmdline = readline(prompt);
 
-    // only add to readline history (arrow keys)
     if (cmdline && *cmdline) {
         add_history(cmdline);
     }
 
-    return cmdline; // caller must handle custom history
+    return cmdline;
 }
 
 /* ---------- Tokenizer ---------- */
@@ -147,12 +151,12 @@ int handle_builtin(char **arglist) {
         printf("  cd [dir]       Change current directory\n");
         printf("  help           Display this help message\n");
         printf("  history        Show command history\n");
-        printf("  jobs           Job control not yet implemented\n");
+        printf("  jobs           Show active background jobs\n");
         return 1;
     }
 
     if (strcmp(arglist[0], "jobs") == 0) {
-        printf("Job control not yet implemented.\n");
+        list_bg_jobs();
         return 1;
     }
 
@@ -185,4 +189,47 @@ int handle_bang_command(char **cmdline) {
     *cmdline = strdup(custom_history_get(n));
     printf("%s\n", *cmdline);
     return 0;
+}
+
+/* ---------- Background Job Management ---------- */
+void reap_background_jobs(void) {
+    int status;
+    pid_t pid;
+    for (int i = 0; i < bg_count; ) {
+        pid = waitpid(bg_jobs[i].pid, &status, WNOHANG);
+        if (pid > 0) {
+            printf("\n[BG] PID %d finished: %s\n", pid, bg_jobs[i].cmd);
+            remove_bg_job(pid);
+        } else {
+            i++;
+        }
+    }
+}
+
+/* ---------- Background Job Management ---------- */
+void add_bg_job(pid_t pid, const char *cmd) {
+    if (bg_count < MAX_BG_JOBS) {
+        bg_jobs[bg_count].pid = pid;
+        strncpy(bg_jobs[bg_count].cmd, cmd, sizeof(bg_jobs[bg_count].cmd) - 1);
+        bg_jobs[bg_count].cmd[sizeof(bg_jobs[bg_count].cmd) - 1] = '\0';
+        bg_count++;
+    }
+}
+
+void remove_bg_job(pid_t pid) {
+    for (int i = 0; i < bg_count; i++) {
+        if (bg_jobs[i].pid == pid) {
+            for (int j = i; j < bg_count - 1; j++) {
+                bg_jobs[j] = bg_jobs[j + 1];
+            }
+            bg_count--;
+            break;
+        }
+    }
+}
+
+void list_bg_jobs(void) {
+    for (int i = 0; i < bg_count; i++) {
+        printf("[%d] PID %d: %s\n", i + 1, bg_jobs[i].pid, bg_jobs[i].cmd);
+    }
 }
